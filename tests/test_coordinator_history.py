@@ -30,7 +30,7 @@ from custom_components.smart_oil_gauge.recorder_writer import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 GRAPH = json.loads((FIXTURES / "graph_data.json").read_text())
-LAST = GRAPH["datasets"]["main"]["week"]["points"][-1]
+LAST = GRAPH["datasets"]["71796"]["week"]["points"][-1]
 CLIENT = "custom_components.smart_oil_gauge.client.SmartOilGaugeClient"
 WRITER = "custom_components.smart_oil_gauge.coordinator"
 
@@ -250,7 +250,7 @@ def _csv(series_start: datetime, hours: int, gallons: float = 90.0) -> str:
     for hour in range(hours):
         when = (series_start + timedelta(hours=hour)).astimezone(tz)
         lines.append(f'"{when:%Y-%m-%d %H:%M:%S}",{gallons}')
-    for point in GRAPH["datasets"]["main"]["week"]["points"]:
+    for point in GRAPH["datasets"]["71796"]["week"]["points"]:
         when = datetime.fromtimestamp(point["ts"], UTC).astimezone(tz)
         lines.append(f'"{when:%Y-%m-%d %H:%M:%S}",{point["gallons"]}')
     return "\n".join(lines)
@@ -299,14 +299,27 @@ async def test_import_history_paths(hass: HomeAssistant, no_writes, caplog) -> N
     assert job.series[0][0] == start.timestamp()
     assert job.states_not_before_ts is not None
 
-    # Without any overlap, fall back to the portal's own offset.
+    # Without any overlap, use the zone matching the portal's own offset,
+    # which keeps daylight saving correct for older readings.
     coordinator.series["940670"] = []
+    summer = datetime(2026, 7, 1, 12, tzinfo=UTC)
+    with patch(
+        f"{CLIENT}.async_export_history",
+        new=AsyncMock(return_value=_csv(summer, 10)),
+    ):
+        await coordinator.async_import_history("940670")
+    assert "taken as America/New_York" in caplog.text
+    job = states.await_args.args[1][0]
+    assert job.series[0][0] == summer.timestamp()
+
+    # An offset no candidate zone has: fixed offset.
+    coordinator.data["940670"]["sensor_rt"] = "2026-11-18 01:27:38"
     with patch(
         f"{CLIENT}.async_export_history",
         new=AsyncMock(return_value=_csv(start, 10)),
     ):
         await coordinator.async_import_history("940670")
-    assert "fixed UTC offset of -5.0 hours" in caplog.text
+    assert "fixed UTC offset of -7.5 hours" in caplog.text
 
     # No offset either: assume Home Assistant's time zone.
     coordinator.data["940670"]["sensor_rt"] = None
@@ -402,7 +415,7 @@ async def test_rolling_backfill_respects_keep_days(
     job = states.await_args.args[1][0]
     assert job.states_not_before_ts == (now - timedelta(days=3)).timestamp()
     # The week of readings is still passed in full for statistics.
-    assert job.start_ts == GRAPH["datasets"]["main"]["week"]["points"][0]["ts"]
+    assert job.start_ts == GRAPH["datasets"]["71796"]["week"]["points"][0]["ts"]
     await hass.config_entries.async_unload(entry.entry_id)
 
 
