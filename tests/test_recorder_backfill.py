@@ -213,7 +213,7 @@ async def test_integration_backfills_week_on_poll(
     """A poll with a new upload writes the week's hourly readings to history."""
     await hass.config.async_set_time_zone("America/New_York")
     graph = json.loads((FIXTURES / "graph_data.json").read_text())
-    points = graph["datasets"]["main"]["week"]["points"]
+    points = graph["datasets"]["71796"]["week"]["points"]
     last = points[-1]
     freezer.move_to(datetime.fromtimestamp(last["ts"], UTC) + timedelta(hours=1))
 
@@ -289,7 +289,7 @@ async def test_integration_csv_history_import(
     """The CSV import adds older readings to statistics and recent ones to history."""
     await hass.config.async_set_time_zone("America/New_York")
     graph = json.loads((FIXTURES / "graph_data.json").read_text())
-    points = graph["datasets"]["main"]["week"]["points"]
+    points = graph["datasets"]["71796"]["week"]["points"]
     last = points[-1]
     freezer.move_to(datetime.fromtimestamp(last["ts"], UTC) + timedelta(hours=1))
 

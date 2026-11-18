@@ -19,6 +19,13 @@ def _graph_series() -> h.Series:
     return h.parse_graph_points(json.loads((FIXTURES / "graph_data.json").read_text()))
 
 
+def test_parse_graph_points_page_shape() -> None:
+    """The web page's renamed ``main`` dataset parses the same way."""
+    raw = json.loads((FIXTURES / "graph_data.json").read_text())
+    renamed = {**raw, "datasets": {"main": raw["datasets"]["71796"]}}
+    assert h.parse_graph_points(renamed) == _graph_series()
+
+
 def test_parse_graph_points_real_week() -> None:
     """The real week of readings parses into an hourly series."""
     series = _graph_series()

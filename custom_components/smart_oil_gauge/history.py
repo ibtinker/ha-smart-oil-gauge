@@ -77,37 +77,40 @@ def value_at(series: Sequence[Point], ts: float) -> float | None:
 def parse_graph_points(payload: object) -> Series:
     """Extract hourly points from a ``get_graph_data`` response.
 
-    The day and week datasets are merged; the day set overlaps the week set
-    so this only matters if the portal ever trims the week set.
+    The portal keys ``datasets`` by sensor registration id (for example
+    ``{"71796": {"day": ..., "week": ...}}``); the web app renames that to
+    ``main`` before charting. Every registration found is merged, and the
+    day and week sets are merged within each.
     """
     if not isinstance(payload, dict):
         return []
     datasets = payload.get("datasets")
     if not isinstance(datasets, dict):
         return []
-    main = datasets.get("main")
-    if not isinstance(main, dict):
-        return []
     sources: list[list[Point]] = []
-    for period in ("week", "day"):
-        block = main.get(period)
-        if not isinstance(block, dict):
+    for registration in datasets.values():
+        if not isinstance(registration, dict):
             continue
-        points = block.get("points")
-        if not isinstance(points, list):
-            continue
-        parsed: list[Point] = []
-        for item in points:
-            if not isinstance(item, dict):
-                continue
-            try:
-                ts = float(item["ts"])
-                gal = float(item["gallons"])
-            except KeyError, TypeError, ValueError:
-                continue
-            parsed.append((ts, gal))
-        sources.append(parsed)
+        for period in ("week", "day"):
+            block = registration.get(period)
+            if isinstance(block, dict):
+                sources.append(_parse_points(block.get("points")))
     return merge_series(*sources)
+
+
+def _parse_points(points: object) -> list[Point]:
+    """Parse a list of ``{"ts": ..., "gallons": ...}`` points."""
+    if not isinstance(points, list):
+        return []
+    parsed: list[Point] = []
+    for item in points:
+        if not isinstance(item, dict):
+            continue
+        try:
+            parsed.append((float(item["ts"]), float(item["gallons"])))
+        except KeyError, TypeError, ValueError:
+            continue
+    return parsed
 
 
 def parse_export_csv(text: str) -> list[tuple[datetime, float]]:

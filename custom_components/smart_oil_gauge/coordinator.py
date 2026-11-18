@@ -659,7 +659,21 @@ class SmartOilGaugeDataUpdateCoordinator(
             if last_read is not None
             else None
         )
-        if offset is not None:
+        if offset is not None and last_read is not None:
+            # Prefer a real (daylight-saving aware) zone whose current offset
+            # matches the portal's, trying Home Assistant's own zone first.
+            for name in dict.fromkeys(candidates):
+                try:
+                    tz = ZoneInfo(name)
+                except KeyError, ValueError:
+                    continue
+                current = datetime.fromtimestamp(last_read, tz).utcoffset()
+                if current is not None and current.total_seconds() == offset:
+                    _LOGGER.info(
+                        "Export time zone taken as %s from the portal's UTC offset",
+                        name,
+                    )
+                    return localize_rows(rows, tz, 0)
             _LOGGER.warning(
                 "Could not confirm the portal time zone; using a fixed UTC "
                 "offset of %+.1f hours for imported history",
