@@ -385,3 +385,31 @@ async def test_older_refill_does_not_replace_newer(hass: HomeAssistant) -> None:
         "1", [(i * 3600.0, g) for i, g in enumerate(levels)]
     )
     assert coordinator.last_refills["1"]["timestamp"] == newer
+
+
+async def test_rolling_backfill_respects_keep_days(
+    hass: HomeAssistant, no_writes
+) -> None:
+    """Rolling backfills honor the recorder's purge_keep_days, not a constant."""
+    states, _ = no_writes
+    now = datetime.fromtimestamp(LAST["ts"], UTC) + timedelta(hours=1)
+    with (
+        patch(f"{WRITER}.dt_util.utcnow", return_value=now),
+        patch(f"{WRITER}._recorder_keep_days", return_value=3),
+    ):
+        entry, _, _ = await _setup(hass, [_tank()])
+        await hass.async_block_till_done()
+    job = states.await_args.args[1][0]
+    assert job.states_not_before_ts == (now - timedelta(days=3)).timestamp()
+    # The week of readings is still passed in full for statistics.
+    assert job.start_ts == GRAPH["datasets"]["main"]["week"]["points"][0]["ts"]
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_keep_days_reads_recorder_setting(hass: HomeAssistant) -> None:
+    """The keep window comes from the running recorder's configuration."""
+    with patch(
+        "homeassistant.components.recorder.get_instance",
+        return_value=MagicMock(keep_days=45),
+    ):
+        assert _recorder_keep_days(hass) == 45

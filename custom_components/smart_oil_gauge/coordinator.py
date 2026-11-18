@@ -410,9 +410,13 @@ class SmartOilGaugeDataUpdateCoordinator(
         series: Series,
         start_ts: float,
         end_ts: float,
-        states_not_before_ts: float | None = None,
     ) -> list[EntityBackfill]:
-        """Build backfill jobs for the tank's level and percentage sensors."""
+        """Build backfill jobs for the tank's level and percentage sensors.
+
+        State rows are only written inside the recorder's own keep window
+        (``purge_keep_days``); older hours go to long-term statistics only.
+        """
+        states_not_before_ts = self._states_cutoff_ts()
         tank = (self.data or {}).get(tank_id, {})
         ids = self._entity_ids(tank_id)
         jobs: list[EntityBackfill] = []
@@ -458,6 +462,11 @@ class SmartOilGaugeDataUpdateCoordinator(
                 )
             )
         return jobs
+
+    def _states_cutoff_ts(self) -> float:
+        """Oldest time to write state rows for: the recorder's keep window."""
+        keep_days = _recorder_keep_days(self.hass)
+        return (dt_util.utcnow() - timedelta(days=keep_days)).timestamp()
 
     def _entity_unit(self, entity_id: str) -> str | None:
         state = self.hass.states.get(entity_id)
@@ -557,13 +566,9 @@ class SmartOilGaugeDataUpdateCoordinator(
         self._update_refill_from_series(tank_id, full)
         self.async_update_listeners()
 
-        keep_days = _recorder_keep_days(self.hass)
-        states_not_before = (dt_util.utcnow() - timedelta(days=keep_days)).timestamp()
         end_ts = self.last_read.get(tank_id, full[-1][0])
         async with self._backfill_lock:
-            jobs = self._build_jobs(
-                tank_id, full, full[0][0], end_ts, states_not_before
-            )
+            jobs = self._build_jobs(tank_id, full, full[0][0], end_ts)
             if not jobs:
                 _LOGGER.warning(
                     "History import for tank %s found no entities to write", tank_id
