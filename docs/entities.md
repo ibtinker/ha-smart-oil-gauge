@@ -19,5 +19,8 @@ Entity IDs are examples; actual IDs depend on your Home Assistant configuration.
 | **Battery** | `sensor.oil_tank_battery` | Battery health status (`Excellent`, `Good`, `Fair`, `Poor`). |
 | **Last Portal Update** | `sensor.oil_tank_last_portal_update` | Timestamp of the last successful data refresh from the portal. |
 | **Last Read** | `sensor.oil_tank_last_read` | When the gauge last uploaded readings to the portal. |
+| **Next Expected Upload** | `sensor.oil_tank_next_expected_upload` | When the gauge should next upload (last upload + its upload interval). Attributes: `next_sync` (when the integration will check the portal) and `overdue`. |
+| **Sync Now** (button) | `button.oil_tank_sync_now` | Checks the portal for new readings immediately. |
+| **Upload Interval** (select) | `select.oil_tank_upload_interval` | The gauge's upload interval (hours) as set on the portal. Changing it updates the portal; the gauge picks it up at its next upload. Attributes: `effective_interval_hours` (in use now), `pending`, `interval_source` (`portal` or `measured`), `number_of_tanks`. |
 | **Import History** (button) | `button.oil_tank_import_history` | Downloads the gauge's full hourly history from the portal and adds it to Home Assistant's history and statistics. Safe to press again. |
 | **Low Fuel Alert** | `binary_sensor.oil_tank_low_fuel_alert` | Alert triggered when fuel level drops below the low threshold. |
