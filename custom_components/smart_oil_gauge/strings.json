@@ -106,6 +106,20 @@
       },
       "next_expected_upload": {
         "name": "Next gauge upload"
+      },
+      "upload_interval_in_use": {
+        "name": "Upload interval in use",
+        "state_attributes": {
+          "portal_interval_hours": {
+            "name": "Interval set on portal"
+          },
+          "pending": {
+            "name": "Change pending until next upload"
+          },
+          "source": {
+            "name": "Source"
+          }
+        }
       }
     },
     "binary_sensor": {

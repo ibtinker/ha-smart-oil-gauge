@@ -57,6 +57,7 @@ async def test_gauge_mode_polls_after_expected_upload(
     next_upload = hass.states.get("sensor.test_tank_next_gauge_upload")
     assert next_upload.state == expected.isoformat()
     assert next_upload.attributes["overdue"] is False
+    assert next_upload.attributes["interval_in_use_hours"] == 12.0
 
     select = hass.states.get("select.test_tank_upload_interval")
     assert select.state == "12"
@@ -171,6 +172,11 @@ async def test_select_changes_interval(hass: HomeAssistant) -> None:
     assert state.state == "6"
     assert state.attributes["pending"] is True
     assert state.attributes["effective_interval_hours"] == 12
+    in_use = hass.states.get("sensor.test_tank_upload_interval_in_use")
+    assert in_use.state == "12.0"
+    assert in_use.attributes["portal_interval_hours"] == 6
+    assert in_use.attributes["pending"] is True
+    assert in_use.attributes["unit_of_measurement"] == "h"
     pending = hass.states.get("binary_sensor.test_tank_upload_interval_change_pending")
     assert pending.state == "on"
     assert pending.attributes["portal_interval_hours"] == 6
