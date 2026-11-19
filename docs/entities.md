@@ -17,9 +17,10 @@ Entity IDs are examples; actual IDs depend on your Home Assistant configuration.
 | **Days to 1/4** | `sensor.oil_tank_days_to_1_4` | Estimated days remaining until fuel reaches 25% capacity. |
 | **Days to 1/8** | `sensor.oil_tank_days_to_1_8` | Estimated days remaining until fuel reaches 12.5% capacity. |
 | **Battery** | `sensor.oil_tank_battery` | Battery health status (`Excellent`, `Good`, `Fair`, `Poor`). |
-| **Last Portal Update** | `sensor.oil_tank_last_portal_update` | Timestamp of the last successful data refresh from the portal. |
-| **Last Read** | `sensor.oil_tank_last_read` | When the gauge last uploaded readings to the portal. |
-| **Next Expected Upload** | `sensor.oil_tank_next_expected_upload` | When the gauge should next upload (last upload + its upload interval). Attributes: `next_sync` (when the integration will check the portal) and `overdue`. |
+| **Last Portal Sync** | `sensor.oil_tank_last_portal_sync` | When Home Assistant last synced with the portal successfully. (Renamed from "Last Portal Update"; existing installs keep their `..._last_portal_update` entity ID.) |
+| **Last Gauge Upload** | `sensor.oil_tank_last_gauge_upload` | When the gauge last uploaded its readings to the portal. |
+| **Next Gauge Upload** | `sensor.oil_tank_next_gauge_upload` | When the gauge should next upload (last upload + its upload interval). Attributes: `next_sync` (when the integration will check the portal) and `overdue`. |
+| **Upload Interval Change Pending** | `binary_sensor.oil_tank_upload_interval_change_pending` | On while a new upload interval waits for the gauge's next upload (the gauge only fetches its settings when it uploads). Attributes: `portal_interval_hours`, `gauge_interval_hours`. |
 | **Sync Now** (button) | `button.oil_tank_sync_now` | Checks the portal for new readings immediately. |
 | **Upload Interval** (select) | `select.oil_tank_upload_interval` | The gauge's upload interval (hours) as set on the portal. Changing it updates the portal; the gauge picks it up at its next upload. Attributes: `effective_interval_hours` (in use now), `pending`, `interval_source` (`portal` or `measured`), `number_of_tanks`. |
 | **Import History** (button) | `button.oil_tank_import_history` | Downloads the gauge's full hourly history from the portal and adds it to Home Assistant's history and statistics. Safe to press again. |

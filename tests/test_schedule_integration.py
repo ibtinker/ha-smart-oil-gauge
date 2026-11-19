@@ -54,7 +54,7 @@ async def test_gauge_mode_polls_after_expected_upload(
     sched = coordinator.schedules["940670"]
     assert (sched.configured_h, sched.effective_h, sched.num_tanks) == (12, 12, 2)
 
-    next_upload = hass.states.get("sensor.test_tank_next_expected_upload")
+    next_upload = hass.states.get("sensor.test_tank_next_gauge_upload")
     assert next_upload.state == expected.isoformat()
     assert next_upload.attributes["overdue"] is False
 
@@ -64,6 +64,20 @@ async def test_gauge_mode_polls_after_expected_upload(
     assert select.attributes["pending"] is False
     assert select.attributes["interval_source"] == "portal"
     assert select.attributes["number_of_tanks"] == 2
+    assert (
+        hass.states.get("binary_sensor.test_tank_upload_interval_change_pending").state
+        == "off"
+    )
+    from custom_components.smart_oil_gauge.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    tank = diag["schedule"]["tank_1"]
+    assert diag["schedule"]["mode"] == "gauge"
+    assert tank["portal_interval_hours"] == 12
+    assert tank["pending"] is False
+    assert tank["next_expected_upload"] == expected.isoformat()
 
     # Closer to the upload, the next sync is just after it.
     with patch(f"{WRITER}.dt_util.utcnow", return_value=expected - timedelta(hours=1)):
@@ -157,6 +171,10 @@ async def test_select_changes_interval(hass: HomeAssistant) -> None:
     assert state.state == "6"
     assert state.attributes["pending"] is True
     assert state.attributes["effective_interval_hours"] == 12
+    pending = hass.states.get("binary_sensor.test_tank_upload_interval_change_pending")
+    assert pending.state == "on"
+    assert pending.attributes["portal_interval_hours"] == 6
+    assert pending.attributes["gauge_interval_hours"] == 12
 
     with (
         patch(
