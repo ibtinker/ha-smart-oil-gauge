@@ -73,7 +73,7 @@
         "name": "Last checked"
       },
       "last_portal_update": {
-        "name": "Last portal update"
+        "name": "Last portal sync"
       },
       "max_level": {
         "name": "Max level"
@@ -102,15 +102,26 @@
         "name": "Last refill date"
       },
       "last_read": {
-        "name": "Last read"
+        "name": "Last gauge upload"
       },
       "next_expected_upload": {
-        "name": "Next expected upload"
+        "name": "Next gauge upload"
       }
     },
     "binary_sensor": {
       "low_fuel_alert": {
         "name": "Low fuel alert"
+      },
+      "upload_interval_pending": {
+        "name": "Upload interval change pending",
+        "state_attributes": {
+          "portal_interval_hours": {
+            "name": "Interval set on portal"
+          },
+          "gauge_interval_hours": {
+            "name": "Interval in use by gauge"
+          }
+        }
       }
     },
     "button": {
