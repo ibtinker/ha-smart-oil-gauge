@@ -18,6 +18,7 @@ Entity IDs are examples; actual IDs depend on your Home Assistant configuration.
 | **Days to 1/8** | `sensor.oil_tank_days_to_1_8` | Estimated days remaining until fuel reaches 12.5% capacity. |
 | **Battery** | `sensor.oil_tank_battery` | Battery health status (`Excellent`, `Good`, `Fair`, `Poor`). |
 | **Last Portal Sync** | `sensor.oil_tank_last_portal_sync` | When Home Assistant last synced with the portal successfully. (Renamed from "Last Portal Update"; existing installs keep their `..._last_portal_update` entity ID.) |
+| **Next Portal Sync** | `sensor.oil_tank_next_portal_sync` | When Home Assistant will next check the portal: shortly after the next expected upload, or the next retry if an upload is late (in fixed-interval mode, the next scheduled poll). |
 | **Last Gauge Upload** | `sensor.oil_tank_last_gauge_upload` | When the gauge last uploaded its readings to the portal. |
 | **Next Gauge Upload** | `sensor.oil_tank_next_gauge_upload` | When the gauge should next upload (last upload + its upload interval). Attributes: `next_sync` (when the integration will check the portal) and `overdue`. |
 | **Upload Interval In Use** | `sensor.oil_tank_upload_interval_in_use` | The upload interval (hours) the gauge is using now, which sets when the next upload is expected. Differs from the Upload interval select while a change is pending. Attributes: `portal_interval_hours`, `pending`, `source` (`portal` or `measured`). |

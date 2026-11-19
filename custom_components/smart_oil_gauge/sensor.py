@@ -139,6 +139,12 @@ def _get_next_expected_upload(
     return coordinator.next_expected_upload(str(tank.get("tank_id", "")).strip())
 
 
+def _get_next_sync(
+    tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
+) -> datetime | None:
+    return coordinator.next_poll_at
+
+
 def _get_interval_in_use(
     tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
 ) -> float | None:
@@ -362,6 +368,14 @@ SENSOR_TYPES: tuple[SmartOilGaugeSensorEntityDescription, ...] = (
         icon="mdi:clock-start",
         value_fn=_get_next_expected_upload,
         attrs_fn=_get_next_expected_attrs,
+    ),
+    SmartOilGaugeSensorEntityDescription(
+        key="next_portal_sync",
+        translation_key="next_portal_sync",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:cloud-clock-outline",
+        value_fn=_get_next_sync,
     ),
     SmartOilGaugeSensorEntityDescription(
         key="upload_interval_in_use",
