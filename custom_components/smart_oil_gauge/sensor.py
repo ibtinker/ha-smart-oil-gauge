@@ -133,6 +133,24 @@ def _get_last_read_value(
     return dt_util.utc_from_timestamp(last_read)
 
 
+def _get_next_expected_upload(
+    tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
+) -> datetime | None:
+    return coordinator.next_expected_upload(str(tank.get("tank_id", "")).strip())
+
+
+def _get_next_expected_attrs(
+    tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
+) -> dict[str, Any] | None:
+    expected = _get_next_expected_upload(tank, coordinator)
+    return {
+        "next_sync": coordinator.next_poll_at.isoformat()
+        if coordinator.next_poll_at
+        else None,
+        "overdue": bool(expected and expected < dt_util.utcnow()),
+    }
+
+
 def _get_refill_attrs(
     tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
 ) -> dict[str, Any] | None:
@@ -310,6 +328,15 @@ SENSOR_TYPES: tuple[SmartOilGaugeSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check-outline",
         value_fn=_get_last_read_value,
+    ),
+    SmartOilGaugeSensorEntityDescription(
+        key="next_expected_upload",
+        translation_key="next_expected_upload",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:clock-start",
+        value_fn=_get_next_expected_upload,
+        attrs_fn=_get_next_expected_attrs,
     ),
     SmartOilGaugeSensorEntityDescription(
         key="max_level",

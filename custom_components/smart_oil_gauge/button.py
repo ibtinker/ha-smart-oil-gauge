@@ -31,11 +31,11 @@ async def async_setup_entry(
             if tank_id in known_tank_ids:
                 continue
             known_tank_ids.add(tank_id)
+            name = tank.get("tank_name", "Oil Tank")
             new_entities.append(
-                SmartOilGaugeImportHistoryButton(
-                    coordinator, tank_id, tank.get("tank_name", "Oil Tank")
-                )
+                SmartOilGaugeImportHistoryButton(coordinator, tank_id, name)
             )
+            new_entities.append(SmartOilGaugeSyncNowButton(coordinator, tank_id, name))
         if new_entities:
             async_add_entities(new_entities)
 
@@ -63,3 +63,19 @@ class SmartOilGaugeImportHistoryButton(SmartOilGaugeEntity, ButtonEntity):
             coordinator.async_import_history(self.tank_id),
             f"smart_oil_gauge import history {self.tank_id}",
         )
+
+
+class SmartOilGaugeSyncNowButton(SmartOilGaugeEntity, ButtonEntity):
+    """Check the portal for new readings right away."""
+
+    _attr_translation_key = "sync_now"
+    _attr_icon = "mdi:cloud-sync-outline"
+
+    def __init__(self, coordinator, tank_id: str, tank_name: str) -> None:
+        """Initialize the button."""
+        super().__init__(coordinator, tank_id, tank_name)
+        self._attr_unique_id = f"{tank_id}_sync_now"
+
+    async def async_press(self) -> None:
+        """Refresh now; new uploads are backfilled as usual."""
+        await self.coordinator.async_refresh()

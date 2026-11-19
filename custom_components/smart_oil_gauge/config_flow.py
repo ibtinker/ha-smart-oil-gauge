@@ -12,16 +12,21 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .client import CannotConnect, InvalidAuth, SmartOilGaugeClient
 from .const import (
     CONF_BACKFILL_STATES,
     CONF_IMPORT_HISTORY,
+    CONF_SCHEDULE_MODE,
     CONF_UPDATE_INTERVAL_HOURS,
     DEFAULT_BACKFILL_STATES,
     DEFAULT_IMPORT_HISTORY,
+    DEFAULT_SCHEDULE_MODE,
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
+    SCHEDULE_FIXED,
+    SCHEDULE_GAUGE,
     USER_AGENT,
 )
 
@@ -170,6 +175,17 @@ class OptionsFlowHandler(config_entries.OptionsFlowWithReload):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_SCHEDULE_MODE,
+                        default=self.config_entry.options.get(
+                            CONF_SCHEDULE_MODE, DEFAULT_SCHEDULE_MODE
+                        ),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[SCHEDULE_GAUGE, SCHEDULE_FIXED],
+                            translation_key=CONF_SCHEDULE_MODE,
+                        )
+                    ),
                     vol.Required(
                         CONF_UPDATE_INTERVAL_HOURS,
                         default=self.config_entry.options.get(
