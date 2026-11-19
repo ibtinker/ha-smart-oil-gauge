@@ -120,6 +120,9 @@
             "name": "Source"
           }
         }
+      },
+      "next_portal_sync": {
+        "name": "Next portal sync"
       }
     },
     "binary_sensor": {

@@ -84,6 +84,12 @@ async def test_gauge_mode_polls_after_expected_upload(
     with patch(f"{WRITER}.dt_util.utcnow", return_value=expected - timedelta(hours=1)):
         coordinator._plan_next_poll(coordinator.data)
     assert coordinator.next_poll_at == poll_at
+    coordinator.async_update_listeners()
+    await hass.async_block_till_done()
+    assert (
+        hass.states.get("sensor.test_tank_next_portal_sync").state
+        == poll_at.isoformat()
+    )
     await hass.config_entries.async_unload(entry.entry_id)
 
 
