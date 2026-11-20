@@ -172,13 +172,16 @@ def _get_interval_in_use_attrs(
 def _get_next_expected_attrs(
     tank: dict[str, Any], coordinator: SmartOilGaugeDataUpdateCoordinator
 ) -> dict[str, Any] | None:
-    expected = _get_next_expected_upload(tank, coordinator)
+    tank_id = str(tank.get("tank_id", "")).strip()
     return {
         "interval_in_use_hours": _get_interval_in_use(tank, coordinator),
+        "possible_uploads": [
+            t.isoformat() for t in coordinator.possible_uploads(tank_id)
+        ],
         "next_sync": coordinator.next_poll_at.isoformat()
         if coordinator.next_poll_at
         else None,
-        "overdue": bool(expected and expected < dt_util.utcnow()),
+        "overdue": coordinator.upload_overdue(tank_id),
     }
 
 

@@ -64,10 +64,11 @@ Both the history backfill and the first-time import can be turned off under **Co
 The gauge uploads on an interval set on the portal (1–24 hours, under **Sensor Config**). By default the integration reads that interval and syncs **a few minutes after each expected upload**, instead of polling on a fixed timer:
 
 - **Next sync** = the gauge's last upload + its upload interval + 5 minutes.
-- **Late upload** (weak signal, low battery): tries again 15, 45 and 105 minutes after it was due, then hourly until it arrives.
+- **Late upload** (weak signal, low battery): tries again 15, 45 and 105 minutes after it was due. If another upload is still possible later (for example while an interval change is pending), it then waits for that; otherwise it keeps trying hourly.
 - **Limits:** never more than 6 hours between syncs, so battery and offline status stay current.
-- **Interval changes take effect at the next upload.** The gauge only fetches new settings when it uploads, so a change made on the portal (or from Home Assistant) is shown as *pending* until then, and the integration keeps expecting the old interval until that upload arrives.
-- **Cross-check:** the spacing between actual uploads is tracked. If it consistently disagrees with the setting, the measured spacing is used. If the setting can't be read, the measured spacing (or the fixed interval) is used.
+- **Interval changes take effect when the gauge fetches its settings,** which it does far less often than it uploads. The portal itself warns this "can take up to a few days." The integration doesn't guess: it shows the change as *pending* (with the time it was made), treats both the old and the new interval as possible for each upload, and confirms the switch from the actual gap between uploads.
+- **The interval in use is learned from the gauge's uploads.** A gap matching the portal setting confirms it; a double-length gap is treated as a missed upload, not a new interval; two consistent gaps that match neither setting are trusted. If the setting can't be read, the measured gaps (or the fixed interval) are used.
+- **Next gauge upload never shows a time in the past.** It shows the earliest upload still possible; if every expected time has passed it shows *unknown* with `overdue: true`.
 
 All tanks on the account are updated by a single request, so one schedule serves every tank: it syncs when the earliest one is due.
 

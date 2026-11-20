@@ -85,6 +85,12 @@ def _schedule_info(coordinator, tank_id: str) -> dict[str, Any] | None:
         "portal_interval_hours": sched.configured_h,
         "gauge_interval_hours": sched.effective_h,
         "pending": sched.pending,
+        "pending_since": sched.pending_since,
+        "interval_confirmed_by_uploads": sched.confirmed,
+        "possible_uploads": [
+            t.isoformat() for t in coordinator.possible_uploads(tank_id)
+        ],
+        "overdue": coordinator.upload_overdue(tank_id),
         "interval_used_hours": hours,
         "interval_source": source,
         "measured_interval_hours": sched.measured_h(),

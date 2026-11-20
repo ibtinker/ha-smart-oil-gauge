@@ -422,9 +422,13 @@ class SmartOilGaugeDataUpdateCoordinator(
                 sched.config_error = str(err) or type(err).__name__
             else:
                 sched.config_error = None
-                sched.update_configured(config.upload_interval, config.num_tanks)
+                sched.update_configured(
+                    config.upload_interval,
+                    config.num_tanks,
+                    dt_util.utcnow().timestamp(),
+                )
         if new_upload and last_read is not None:
-            # The gauge fetched the portal's current setting with this upload.
+            # The gap since the previous upload shows the interval in use.
             sched.record_upload(last_read)
         elif last_read is not None and not sched.upload_times:
             sched.upload_times.append(last_read)
@@ -442,7 +446,7 @@ class SmartOilGaugeDataUpdateCoordinator(
             exp
             for tank_id, tank in tanks.items()
             if (sched := self.schedules.get(tank_id)) is not None
-            and (exp := sched.next_expected(parse_last_read(tank))) is not None
+            for exp in sched.candidates(parse_last_read(tank))
         ]
         delay, poll_at = next_poll_delay(
             now, expected, self.fixed_interval.total_seconds()
@@ -457,8 +461,29 @@ class SmartOilGaugeDataUpdateCoordinator(
         tank = (self.data or {}).get(tank_id)
         if sched is None or tank is None:
             return None
-        expected = sched.next_expected(parse_last_read(tank))
+        expected = sched.next_expected(
+            parse_last_read(tank), dt_util.utcnow().timestamp()
+        )
         return dt_util.utc_from_timestamp(expected) if expected else None
+
+    def upload_overdue(self, tank_id: str) -> bool:
+        """True when every expected upload time for the tank has passed."""
+        sched = self.schedules.get(tank_id)
+        tank = (self.data or {}).get(tank_id)
+        if sched is None or tank is None:
+            return False
+        return sched.overdue(parse_last_read(tank), dt_util.utcnow().timestamp())
+
+    def possible_uploads(self, tank_id: str) -> list[datetime]:
+        """Every time the tank's next upload could come."""
+        sched = self.schedules.get(tank_id)
+        tank = (self.data or {}).get(tank_id)
+        if sched is None or tank is None:
+            return []
+        return [
+            dt_util.utc_from_timestamp(ts)
+            for ts in sched.candidates(parse_last_read(tank))
+        ]
 
     async def async_set_upload_interval(self, tank_id: str, hours: int) -> None:
         """Change the gauge's upload interval on the portal."""
@@ -468,7 +493,10 @@ class SmartOilGaugeDataUpdateCoordinator(
             raise SmartOilGaugeException(f"No sensor registration for tank {tank_id}")
         config = await self.client.async_set_upload_interval(reg_id, hours)
         sched = self.schedules.setdefault(tank_id, TankSchedule())
-        sched.update_configured(config.upload_interval, config.num_tanks)
+        sched.update_configured(
+            config.upload_interval, config.num_tanks, dt_util.utcnow().timestamp()
+        )
+        self._plan_next_poll(self.data or {})
         await self._async_save_storage()
         self.async_update_listeners()
 
