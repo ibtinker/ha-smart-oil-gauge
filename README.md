@@ -68,7 +68,7 @@ The gauge uploads on an interval set on the portal (1–24 hours, under **Sensor
 - **Limits:** never more than 6 hours between syncs, so battery and offline status stay current.
 - **Interval changes take effect when the gauge fetches its settings,** which it does far less often than it uploads. The portal itself warns this "can take up to a few days." The integration doesn't guess: it shows the change as *pending* (with the time it was made), treats both the old and the new interval as possible for each upload, and confirms the switch from the actual gap between uploads.
 - **The interval in use is learned from the gauge's uploads.** A gap matching the portal setting confirms it; a double-length gap is treated as a missed upload, not a new interval; two consistent gaps that match neither setting are trusted. If the setting can't be read, the measured gaps (or the fixed interval) are used.
-- **Next gauge upload never shows a time in the past.** It shows the earliest upload still possible; if every expected time has passed it shows *unknown* with `overdue: true`.
+- **Next gauge upload shows the earliest upload still possible.** An expected upload stays shown for the 5 minutes until the sync that checks for it (so it may read "2 minutes ago" while it is due); after that it moves to the next possible upload, or shows *unknown* with `overdue: true` if none is left.
 
 All tanks on the account are updated by a single request, so one schedule serves every tank: it syncs when the earliest one is due.
 

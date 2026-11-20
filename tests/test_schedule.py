@@ -127,6 +127,21 @@ def test_unknown_and_measured_only() -> None:
     assert sched.candidates(T0) == [pytest.approx(T0 + 12 * H)]
 
 
+def test_expected_upload_shown_until_the_sync_after_it() -> None:
+    """During the 5-minute grace after an expected upload it is still shown."""
+    sched = TankSchedule(configured_h=2, effective_h=1)
+    slot_1h, slot_2h = T0 + H, T0 + 2 * H
+    assert sched.next_expected(T0, slot_1h + 60) == slot_1h  # "1 minute ago"
+    assert not sched.overdue(T0, slot_1h + 60)
+    assert sched.next_expected(T0, slot_1h + GRACE_S - 1) == slot_1h
+    # The sync at +5 minutes moves on to the next possible upload.
+    assert sched.next_expected(T0, slot_1h + GRACE_S) == slot_2h
+    # Same for the last slot: shown during its grace, then unknown.
+    assert sched.next_expected(T0, slot_2h + 60) == slot_2h
+    assert sched.next_expected(T0, slot_2h + GRACE_S) is None
+    assert sched.overdue(T0, slot_2h + GRACE_S)
+
+
 def test_overdue_when_every_slot_passed() -> None:
     """Overdue only after every possible upload time has passed."""
     sched = TankSchedule(configured_h=1, effective_h=12)
