@@ -11,6 +11,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .coordinator import (
     SmartOilGaugeConfigEntry,
@@ -127,4 +128,7 @@ class SmartOilGaugeIntervalPendingBinarySensor(SmartOilGaugeEntity, BinarySensor
         return {
             "portal_interval_hours": sched.configured_h,
             "gauge_interval_hours": sched.effective_h,
+            "pending_since": dt_util.utc_from_timestamp(sched.pending_since).isoformat()
+            if sched.pending_since
+            else None,
         }

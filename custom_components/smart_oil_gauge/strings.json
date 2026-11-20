@@ -105,7 +105,21 @@
         "name": "Last gauge upload"
       },
       "next_expected_upload": {
-        "name": "Next gauge upload"
+        "name": "Next gauge upload",
+        "state_attributes": {
+          "possible_uploads": {
+            "name": "Possible upload times"
+          },
+          "overdue": {
+            "name": "Overdue"
+          },
+          "next_sync": {
+            "name": "Next portal sync"
+          },
+          "interval_in_use_hours": {
+            "name": "Interval in use"
+          }
+        }
       },
       "upload_interval_in_use": {
         "name": "Upload interval in use",
@@ -137,6 +151,9 @@
           },
           "gauge_interval_hours": {
             "name": "Interval in use by gauge"
+          },
+          "pending_since": {
+            "name": "Changed on portal at"
           }
         }
       }

@@ -134,14 +134,27 @@ async def test_new_upload_applies_pending_interval(
         await coordinator.async_refresh()
     sched = coordinator.schedules["940670"]
     assert sched.pending
-    assert coordinator.next_expected_upload("940670") == LAST_READ + timedelta(hours=12)
+    # Either interval is possible until the gauge picks up the change.
+    assert coordinator.possible_uploads("940670") == [
+        LAST_READ + timedelta(hours=1),
+        LAST_READ + timedelta(hours=12),
+    ]
 
-    later = _tank(last_read=str(LAST["ts"] + 12 * 3600))
-    with (
-        patch(f"{CLIENT}.async_get_tanks", return_value=[later]),
-        patch(f"{CLIENT}.async_get_graph_data", new=AsyncMock(return_value={})),
-    ):
-        await coordinator.async_refresh()
+    async def upload_after(hours: float) -> None:
+        ts = coordinator.last_read["940670"] + hours * 3600
+        tank = _tank(last_read=str(ts))
+        now = datetime.fromtimestamp(ts, UTC) + timedelta(minutes=5)
+        with (
+            patch(f"{WRITER}.dt_util.utcnow", return_value=now),
+            patch(f"{CLIENT}.async_get_tanks", return_value=[tank]),
+            patch(f"{CLIENT}.async_get_graph_data", new=AsyncMock(return_value={})),
+        ):
+            await coordinator.async_refresh()
+
+    await upload_after(12)  # the gauge has not picked it up yet
+    assert sched.pending
+    assert sched.effective_h == 12
+    await upload_after(1)  # now it has
     assert not sched.pending
     assert sched.effective_h == 1
     await hass.config_entries.async_unload(entry.entry_id)
@@ -187,6 +200,10 @@ async def test_select_changes_interval(hass: HomeAssistant) -> None:
     assert pending.state == "on"
     assert pending.attributes["portal_interval_hours"] == 6
     assert pending.attributes["gauge_interval_hours"] == 12
+    assert pending.attributes["pending_since"] is not None
+    upcoming = hass.states.get("sensor.test_tank_next_gauge_upload")
+    assert len(upcoming.attributes["possible_uploads"]) == 2
+    assert upcoming.attributes["overdue"] is False
 
     with (
         patch(

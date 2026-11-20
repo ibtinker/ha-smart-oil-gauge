@@ -1,17 +1,16 @@
 """Work out when each gauge will next upload, and when to poll the portal.
 
 The gauge uploads its hourly readings on an interval set on the portal
-(1-24 hours). It only fetches a changed interval *when it uploads*, so a
-change made on the portal takes effect after the next upload. We therefore
-track two values per gauge:
+(1-24 hours). It downloads its settings far less often than it uploads (the
+portal warns that a change "can take up to a few days"), so we cannot
+predict when a changed interval takes effect. Instead we watch for it:
 
 * ``configured_h``: what the portal says now.
-* ``effective_h``: what the gauge is actually using, i.e. the interval that
-  was configured as of its most recent upload.
+* ``effective_h``: what the gauge is actually doing, confirmed by the gaps
+  between its uploads.
 
-The spacing between observed uploads is a cross-check: if two consecutive
-spacings agree with each other but not with ``effective_h``, the measured
-spacing wins.
+While the two differ, a change is *pending* and the next upload may come
+after either interval, so both are treated as possible.
 """
 
 from __future__ import annotations
@@ -22,14 +21,14 @@ from typing import Any
 
 # Gauges upload a little after the exact interval (about a minute was seen).
 GRACE_S = 5 * 60
-# If an upload is late, poll again at these offsets after it was due, then
-# hourly.
+# If an expected upload has not arrived, poll again at these offsets after it
+# was due. Only when no other upload is expected later, keep trying hourly.
 RETRY_OFFSETS_S = (15 * 60, 45 * 60, 105 * 60)
 RETRY_EVERY_S = 60 * 60
 # Bounds on the time between polls.
 MIN_DELAY_S = 60
 MAX_DELAY_S = 6 * 3600
-# Upload spacings within this many seconds of each other count as agreeing.
+# A gap counts as a whole number of hours if it is within this of one.
 SPACING_TOLERANCE_S = 20 * 60
 KEEP_UPLOADS = 6
 
@@ -42,6 +41,8 @@ class TankSchedule:
     effective_h: int | None = None
     num_tanks: int | None = None
     upload_times: list[float] = field(default_factory=list)
+    pending_since: float | None = None
+    confirmed: bool = False
     config_error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
@@ -51,6 +52,8 @@ class TankSchedule:
             "effective_h": self.effective_h,
             "num_tanks": self.num_tanks,
             "upload_times": list(self.upload_times),
+            "pending_since": self.pending_since,
+            "confirmed": self.confirmed,
         }
 
     @classmethod
@@ -59,6 +62,7 @@ class TankSchedule:
         if not isinstance(raw, dict):
             return cls()
         times = raw.get("upload_times")
+        since = raw.get("pending_since")
         return cls(
             configured_h=_hours(raw.get("configured_h")),
             effective_h=_hours(raw.get("effective_h")),
@@ -68,38 +72,67 @@ class TankSchedule:
             )[-KEEP_UPLOADS:]
             if isinstance(times, list)
             else [],
+            pending_since=float(since) if isinstance(since, int | float) else None,
+            confirmed=raw.get("confirmed") is True,
         )
 
     @property
     def pending(self) -> bool:
-        """True when the portal has an interval the gauge has not picked up yet."""
+        """True while the portal setting differs from what the gauge does."""
         return (
             self.configured_h is not None
             and self.effective_h is not None
             and self.configured_h != self.effective_h
         )
 
-    def update_configured(self, hours: int | None, num_tanks: int | None) -> None:
+    def update_configured(
+        self, hours: int | None, num_tanks: int | None, now: float
+    ) -> None:
         """Record the interval the portal shows now."""
-        if hours is not None:
-            self.configured_h = hours
-            if self.effective_h is None:
-                # First time we see this gauge: assume it is already in effect.
-                self.effective_h = hours
         if num_tanks is not None:
             self.num_tanks = num_tanks
+        if hours is None:
+            return
+        if self.effective_h is None:
+            # First time we see this gauge: assume it already uses the setting
+            # until its upload gaps say otherwise.
+            self.effective_h = hours
+        if hours != self.configured_h:
+            self.configured_h = hours
+            self.pending_since = now if self.pending else None
+        elif not self.pending:
+            self.pending_since = None
 
     def record_upload(self, last_read: float) -> None:
-        """Record a new upload. The gauge picked up the portal setting with it."""
+        """Record a new upload and learn the interval from the gap before it."""
         if self.upload_times and last_read <= self.upload_times[-1] + 1:
             return
+        previous = self.upload_times[-1] if self.upload_times else None
         self.upload_times.append(last_read)
         self.upload_times = self.upload_times[-KEEP_UPLOADS:]
-        if self.configured_h is not None:
-            self.effective_h = self.configured_h
+        if previous is None:
+            return
+        gap_h = _whole_hours(last_read - previous)
+        if gap_h is None:
+            return
+        if gap_h == self.configured_h:
+            # The gauge is following the portal setting.
+            self.effective_h = gap_h
+            self.confirmed = True
+            self.pending_since = None
+            return
+        if self.effective_h and gap_h % self.effective_h == 0:
+            # One interval, or a missed upload or two: nothing changed.
+            self.confirmed = self.confirmed or gap_h == self.effective_h
+            return
+        measured = self.measured_h()
+        if measured is not None and _whole_hours(measured * 3600) == gap_h:
+            # Two consistent gaps that match neither setting: trust them.
+            self.effective_h = gap_h
+            self.confirmed = True
 
     def measured_h(self) -> float | None:
-        """Interval implied by the last uploads, if they agree with each other."""
+        """Interval implied by the last uploads, if their gaps agree."""
         times = self.upload_times
         if len(times) < 3:
             return None
@@ -109,25 +142,33 @@ class TankSchedule:
         return statistics.mean(spacings) / 3600
 
     def interval(self) -> tuple[float | None, str]:
-        """Return the interval in hours to expect, and where it came from."""
-        measured = self.measured_h()
-        if self.effective_h is not None:
-            if (
-                measured is not None
-                and abs(measured - self.effective_h) * 3600 > SPACING_TOLERANCE_S
-            ):
-                return measured, "measured"
-            return float(self.effective_h), "portal"
-        if measured is not None:
-            return measured, "measured"
-        return None, "unknown"
+        """The interval the gauge is using, and how we know it."""
+        if self.effective_h is None:
+            measured = self.measured_h()
+            return (measured, "observed") if measured is not None else (None, "unknown")
+        return float(self.effective_h), "observed" if self.confirmed else "portal"
 
-    def next_expected(self, last_read: float | None) -> float | None:
-        """When the next upload should arrive, as a unix timestamp."""
-        hours, _ = self.interval()
-        if last_read is None or hours is None:
-            return None
-        return last_read + hours * 3600
+    def candidates(self, last_read: float | None) -> list[float]:
+        """Every time the next upload could come, earliest first."""
+        if last_read is None:
+            return []
+        hours = {self.effective_h, self.configured_h} - {None}
+        if not hours:
+            measured = self.measured_h()
+            if measured is None:
+                return []
+            return [last_read + measured * 3600]
+        return sorted(last_read + h * 3600 for h in hours)
+
+    def next_expected(self, last_read: float | None, now: float) -> float | None:
+        """The earliest possible upload that has not yet been missed."""
+        future = [c for c in self.candidates(last_read) if c + GRACE_S > now]
+        return future[0] if future else None
+
+    def overdue(self, last_read: float | None, now: float) -> bool:
+        """True when every expected upload time has passed."""
+        found = self.candidates(last_read)
+        return bool(found) and all(c + GRACE_S <= now for c in found)
 
 
 def next_poll_delay(
@@ -135,27 +176,41 @@ def next_poll_delay(
 ) -> tuple[float, float]:
     """Return ``(delay_s, poll_at)`` for the next poll.
 
-    Polls shortly after the earliest expected upload. If an upload is
-    overdue, polls at the next retry offset. Without any expectation, uses
-    ``fallback_s``. The delay is kept between ``MIN_DELAY_S`` and
-    ``MAX_DELAY_S``.
+    Polls shortly after each possible upload time. Missed ones get a few
+    retries; hourly retries only start once no upload is expected later.
+    Without any expectation, uses ``fallback_s``. The delay is kept between
+    ``MIN_DELAY_S`` and ``MAX_DELAY_S``.
     """
-    candidates = [_next_attempt(now, exp + GRACE_S) for exp in expected]
-    delay = min(candidates) - now if candidates else fallback_s
+    dues = [exp + GRACE_S for exp in expected]
+    upcoming = [d for d in dues if d > now]
+    attempts = list(upcoming)
+    for due in dues:
+        if due <= now:
+            attempts.extend(
+                due + o for o in RETRY_OFFSETS_S if due + o > now + MIN_DELAY_S
+            )
+    if dues and not upcoming:
+        attempts.append(_hourly_after(now, max(dues)))
+    delay = min(attempts) - now if attempts else fallback_s
     delay = max(MIN_DELAY_S, min(MAX_DELAY_S, delay))
     return delay, now + delay
 
 
-def _next_attempt(now: float, due: float) -> float:
-    """The first scheduled attempt (due, then retries) after ``now``."""
-    if due > now:
-        return due
-    for offset in RETRY_OFFSETS_S:
-        if due + offset > now + MIN_DELAY_S:
-            return due + offset
+def _hourly_after(now: float, due: float) -> float:
+    """The next hourly retry after the last fixed retry for ``due``."""
     last = due + RETRY_OFFSETS_S[-1]
+    if last > now + MIN_DELAY_S:
+        return last
     steps = int((now + MIN_DELAY_S - last) // RETRY_EVERY_S) + 1
     return last + steps * RETRY_EVERY_S
+
+
+def _whole_hours(seconds: float) -> int | None:
+    """Round a gap to whole hours, or None if it is not close to one."""
+    hours = round(seconds / 3600)
+    if hours < 1 or abs(seconds - hours * 3600) > SPACING_TOLERANCE_S:
+        return None
+    return hours
 
 
 def _hours(value: Any, maximum: int = 24) -> int | None:
