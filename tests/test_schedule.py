@@ -214,9 +214,9 @@ def test_missed_slot_gets_short_retries_then_waits_for_the_next() -> None:
     assert next_poll_delay(due + 46 * 60, [slot_1h, slot_12h], 6 * H)[1] == (
         due + 105 * 60
     )
-    # After the last retry, no hourly polling: next is capped at 6 hours.
-    delay, _ = next_poll_delay(due + 106 * 60, [slot_1h, slot_12h], 6 * H)
-    assert delay == MAX_DELAY_S
+    # After the last retry, no hourly polling: wait for the 12-hour slot.
+    _, at = next_poll_delay(due + 106 * 60, [slot_1h, slot_12h], 6 * H)
+    assert at == slot_12h + GRACE_S
 
 
 def test_hourly_retries_once_nothing_else_expected() -> None:
@@ -229,6 +229,8 @@ def test_hourly_retries_once_nothing_else_expected() -> None:
 
 def test_next_poll_bounds_and_fallback() -> None:
     """Delays stay within bounds; no expectations means the fallback."""
-    assert next_poll_delay(T0, [T0 + 24 * H], 6 * H)[0] == MAX_DELAY_S
+    # A 24-hour gauge is waited for, not polled in between.
+    assert next_poll_delay(T0, [T0 + 24 * H], 6 * H)[0] == 24 * H + GRACE_S
+    assert next_poll_delay(T0, [T0 + 30 * H], 6 * H)[0] == MAX_DELAY_S
     assert next_poll_delay(T0, [T0 - GRACE_S + 5], 6 * H)[0] == MIN_DELAY_S
     assert next_poll_delay(T0, [], 3 * H)[0] == 3 * H

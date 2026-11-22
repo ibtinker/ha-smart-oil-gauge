@@ -27,7 +27,10 @@ RETRY_OFFSETS_S = (15 * 60, 45 * 60, 105 * 60)
 RETRY_EVERY_S = 60 * 60
 # Bounds on the time between polls.
 MIN_DELAY_S = 60
-MAX_DELAY_S = 6 * 3600
+# Longest wait: just over the gauge's longest upload interval (24 h). Status
+# data only changes when the gauge uploads, so there is nothing to refresh
+# in between; this is only a safety net.
+MAX_DELAY_S = 25 * 3600
 # A gap counts as a whole number of hours if it is within this of one.
 SPACING_TOLERANCE_S = 20 * 60
 KEEP_UPLOADS = 6
