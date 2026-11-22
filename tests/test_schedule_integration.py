@@ -47,8 +47,9 @@ async def test_gauge_mode_polls_after_expected_upload(
     coordinator = entry.runtime_data.coordinator
     expected = LAST_READ + timedelta(hours=12)
     poll_at = expected + timedelta(seconds=GRACE_S)
-    # 11 hours away is beyond the 6-hour cap.
-    assert coordinator.update_interval == timedelta(hours=6)
+    # No syncs in between: the next one is just after the expected upload.
+    assert coordinator.update_interval == timedelta(hours=11, seconds=GRACE_S)
+    assert coordinator.next_poll_at == poll_at
     assert coordinator.next_expected_upload("940670") == expected
 
     sched = coordinator.schedules["940670"]
